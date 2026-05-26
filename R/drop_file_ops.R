@@ -2,6 +2,8 @@
 
 #' Copies a file or folder to a new location.
 #'
+#' Copies a file or folder to a new location.
+#'
 #' @template from_to
 #' @template verbose
 #' @template token
@@ -29,29 +31,29 @@ drop_copy <-
            verbose = FALSE,
            dtoken = get_dropbox_token())  {
     copy_url <- "https://api.dropboxapi.com/2/files/copy_v2"
-
+    to_path <- add_slashes(to_path)
     from_path <- add_slashes(from_path)
     to_path <- add_slashes(to_path)
-
+    file_to_folder <-
     # Copying a file into a folder
     file_to_folder <-
       c(drop_type(from_path) == "file",
         drop_type(to_path) == "folder")
     to_path <-
       ifelse(all(file_to_folder), paste0(to_path, from_path), to_path)
-
+    folder_to_folder <-
     # coping a folder to another folder
     folder_to_folder <-
       c(drop_type(from_path) == "folder",
         drop_type(to_path) == "folder")
     to_path <-
       ifelse(all(folder_to_folder), paste0(to_path, from_path), to_path)
-
+    # Nothing to do, since both paths reflect origin and destination
     # Copying a file to a file
     # Nothing to do, since both paths reflect origin and destination
 
     # Copying a folder to an existing filename will result in a HTTP 409 (conflict error)
-
+      list(
     args <- drop_compact(
       list(
         from_path = from_path,
@@ -61,16 +63,8 @@ drop_copy <-
         allow_ownership_transfer = allow_ownership_transfer
       )
     )
-
+      res <- drop_request(copy_url, dtoken, body = args)
     if (drop_exists(from_path)) {
-      # copy
-      x <-
-        httr::POST(copy_url,
-                   httr::config(token = dtoken),
-                   body = args,
-                   encode = "json")
-      res <- httr::content(x)
-      if (!verbose) {
         message(sprintf("%s copied to %s", from_path, res$metadata$path_lower))
         invisible(res)
       } else {
@@ -146,13 +140,7 @@ drop_move <-
     )
 
     if (drop_exists(from_path)) {
-      # move
-      x <-
-        httr::POST(move_url,
-                   httr::config(token = dtoken),
-                   body = args,
-                   encode = "json")
-      res <- httr::content(x)
+      res <- drop_request(move_url, dtoken, body = args)
 
       if (!verbose) {
         message(sprintf("%s moved to %s", from_path, res$metadata$path_lower))
@@ -181,14 +169,7 @@ drop_delete <-
     create_url <- "https://api.dropboxapi.com/2/files/delete_v2"
     if (drop_exists(path)) {
       path <- add_slashes(path)
-      x <-
-        httr::POST(
-          create_url,
-          httr::config(token = dtoken),
-          body = list(path = path),
-          encode = "json"
-        )
-      res <- httr::content(x)
+      res <- drop_request(create_url, dtoken, body = list(path = path))
 
       if (verbose) {
         res
@@ -227,14 +208,10 @@ drop_create <-
       create_url <- "https://api.dropboxapi.com/2/files/create_folder_v2"
 
       path <- add_slashes(path)
-      x <-
-        httr::POST(
-          create_url,
-          config(token = dtoken),
-          body = list(path = path, autorename = autorename),
-          encode = "json"
-        )
-      results <- httr::content(x)
+      results <- drop_request(
+        create_url, dtoken,
+        body = list(path = path, autorename = autorename)
+      )
 
       if (verbose) {
         pretty_lists(results)
@@ -249,10 +226,6 @@ drop_create <-
       stop("Folder already exists")
     }
   }
-
-
-
-
 
 
 #' Checks to see if a file/folder exists on Dropbox
@@ -336,5 +309,150 @@ drop_type <- function(x, dtoken = get_dropbox_token()) {
     FALSE
   } else {
     x$result$.tag
+  }
+}
+
+
+#' Copy multiple files or folders in a single batch request.
+#'
+#' More efficient than calling \code{\link{drop_copy}} repeatedly for large
+#' numbers of files.  The function blocks until the batch job completes.
+#'
+#' @param entries A list of named lists, each with \code{from_path} and
+#'   \code{to_path} character elements.
+#' @param autorename If \code{TRUE}, the Dropbox server will try to autorename
+#'   files to avoid conflicts. Default \code{FALSE}.
+#' @template token
+#'
+#' @return A list of per-entry results returned by the Dropbox API.
+#'
+#' @references \href{https://www.dropbox.com/developers/documentation/http/documentation#files-copy_batch_v2}{API documentation}
+#'
+#' @export
+#'
+#' @examples \dontrun{
+#'   entries <- list(
+#'     list(from_path = "/file1.csv", to_path = "/backup/file1.csv"),
+#'     list(from_path = "/file2.csv", to_path = "/backup/file2.csv")
+#'   )
+#'   drop_copy_batch(entries)
+#' }
+drop_copy_batch <- function(entries, autorename = FALSE,
+                            dtoken = get_dropbox_token()) {
+  url_start  <- "https://api.dropboxapi.com/2/files/copy_batch_v2"
+  url_check  <- "https://api.dropboxapi.com/2/files/copy_batch/check_v2"
+
+  res <- drop_request(url_start, dtoken,
+                      body = list(entries = entries, autorename = autorename))
+
+  .poll_async_job(res, url_check, dtoken)
+}
+
+
+#' Move multiple files or folders in a single batch request.
+#'
+#' More efficient than calling \code{\link{drop_move}} repeatedly for large
+#' numbers of files.  The function blocks until the batch job completes.
+#'
+#' @param entries A list of named lists, each with \code{from_path} and
+#'   \code{to_path} character elements.
+#' @param autorename If \code{TRUE}, the Dropbox server will try to autorename
+#'   files to avoid conflicts. Default \code{FALSE}.
+#' @param allow_ownership_transfer If \code{TRUE}, allow moves that would
+#'   result in ownership transfer. Default \code{FALSE}.
+#' @template token
+#'
+#' @return A list of per-entry results returned by the Dropbox API.
+#'
+#' @references \href{https://www.dropbox.com/developers/documentation/http/documentation#files-move_batch_v2}{API documentation}
+#'
+#' @export
+#'
+#' @examples \dontrun{
+#'   entries <- list(
+#'     list(from_path = "/file1.csv", to_path = "/archive/file1.csv")
+#'   )
+#'   drop_move_batch(entries)
+#' }
+drop_move_batch <- function(entries, autorename = FALSE,
+                            allow_ownership_transfer = FALSE,
+                            dtoken = get_dropbox_token()) {
+  url_start <- "https://api.dropboxapi.com/2/files/move_batch_v2"
+  url_check <- "https://api.dropboxapi.com/2/files/move_batch/check_v2"
+
+  res <- drop_request(url_start, dtoken,
+                      body = list(
+                        entries                  = entries,
+                        autorename               = autorename,
+                        allow_ownership_transfer = allow_ownership_transfer
+                      ))
+
+  .poll_async_job(res, url_check, dtoken)
+}
+
+
+#' Delete multiple files or folders in a single batch request.
+#'
+#' More efficient than calling \code{\link{drop_delete}} repeatedly for large
+#' numbers of files.  The function blocks until the batch job completes.
+#'
+#' @param entries A list of named lists, each with a \code{path} character
+#'   element specifying the Dropbox path to delete.
+#' @template token
+#'
+#' @return A list of per-entry results returned by the Dropbox API.
+#'
+#' @references \href{https://www.dropbox.com/developers/documentation/http/documentation#files-delete_batch}{API documentation}
+#'
+#' @export
+#'
+#' @examples \dontrun{
+#'   entries <- list(
+#'     list(path = "/old_file1.csv"),
+#'     list(path = "/old_file2.csv")
+#'   )
+#'   drop_delete_batch(entries)
+#' }
+drop_delete_batch <- function(entries, dtoken = get_dropbox_token()) {
+  url_start <- "https://api.dropboxapi.com/2/files/delete_batch"
+  url_check <- "https://api.dropboxapi.com/2/files/delete_batch/check"
+
+  res <- drop_request(url_start, dtoken, body = list(entries = entries))
+
+  .poll_async_job(res, url_check, dtoken)
+}
+
+
+#' Poll an async Dropbox job until it completes.
+#'
+#' @param res   Initial response from a batch/async endpoint.
+#' @param check_url  URL of the corresponding check endpoint.
+#' @param dtoken ****** string.
+#' @param interval Polling interval in seconds. Default 2.
+#'
+#' @return The completed job result list.
+#'
+#' @noRd
+.poll_async_job <- function(res, check_url, dtoken, interval = 2) {
+  # If already complete, return immediately
+  if (!is.null(res[[".tag"]]) && res[[".tag"]] == "complete") {
+    return(res$entries)
+  }
+
+  async_job_id <- res$async_job_id
+  if (is.null(async_job_id)) return(res)
+
+  repeat {
+    Sys.sleep(interval)
+    status <- drop_request(check_url, dtoken,
+                           body = list(async_job_id = async_job_id))
+    tag <- status[[".tag"]]
+    if (!is.null(tag) && tag == "complete") {
+      return(status$entries)
+    }
+    if (!is.null(tag) && tag == "failed") {
+      stop("Batch job failed: ", status$failure)
+    }
+    # tag == "in_progress": keep polling
   }
 }
