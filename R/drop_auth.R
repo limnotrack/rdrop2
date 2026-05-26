@@ -66,13 +66,15 @@ drop_auth <- function(new_user = FALSE,
   # load token from explicit RDS path
   if (!isTRUE(new_user) && !is.na(rdstoken)) {
     if (!file.exists(rdstoken)) stop("token file not found")
-    .dstate$token <- readRDS(rdstoken)
+    .dstate$token      <- readRDS(rdstoken)
+    .dstate$cache_path <- rdstoken
     return(invisible(.dstate$token))
   }
 
   # load token from cache path (unless new_user)
   if (!isTRUE(new_user) && !is.null(cache_path) && file.exists(cache_path)) {
-    .dstate$token <- readRDS(cache_path)
+    .dstate$token      <- readRDS(cache_path)
+    .dstate$cache_path <- cache_path
     return(invisible(.dstate$token))
   }
 
@@ -84,17 +86,19 @@ drop_auth <- function(new_user = FALSE,
 
   # build OAuth2 client
   dropbox_client <- httr2::oauth_client(
-    id     = key,
-    secret = secret,
+    id        = key,
+    secret    = secret,
     token_url = "https://api.dropbox.com/oauth2/token",
-    name   = "dropbox"
+    name      = "dropbox"
   )
 
-  # run auth-code flow (opens browser)
+  # run auth-code flow (opens browser); request offline access so that
+  # Dropbox returns a refresh_token alongside the short-lived access_token
   dropbox_token <- httr2::oauth_flow_auth_code(
-    client   = dropbox_client,
-    auth_url = "https://www.dropbox.com/oauth2/authorize",
-    pkce     = FALSE
+    client      = dropbox_client,
+    auth_url    = "https://www.dropbox.com/oauth2/authorize",
+    auth_params = list(token_access_type = "offline"),
+    pkce        = FALSE
   )
 
   if (is.null(dropbox_token$access_token)) {
@@ -106,7 +110,9 @@ drop_auth <- function(new_user = FALSE,
     saveRDS(dropbox_token, cache_path)
   }
 
-  .dstate$token <- dropbox_token
+  .dstate$token      <- dropbox_token
+  .dstate$client     <- dropbox_client
+  .dstate$cache_path <- cache_path
   invisible(.dstate$token)
 }
 
@@ -114,13 +120,41 @@ drop_auth <- function(new_user = FALSE,
 #' Retrieve the Dropbox bearer token string
 #'
 #' Returns the access token string stored in the rdrop2 environment. If no
-#' token is cached, \code{\link{drop_auth}} is called interactively.
+#' token is cached, \code{\link{drop_auth}} is called interactively. If the
+#' stored token has expired and a refresh token is available, the token is
+#' silently refreshed and the cache file is updated.
 #'
 #' @keywords internal
 get_dropbox_token <- function() {
   if (!exists(".dstate") || is.null(.dstate$token)) {
     drop_auth()
   }
-  .dstate$token$access_token
+
+  token <- .dstate$token
+
+  # Refresh if the access token has expired and we have a refresh token
+  has_refresh  <- !is.null(token$refresh_token)
+  has_expiry   <- !is.null(token$expires_at)
+  is_expired   <- has_expiry && token$expires_at < Sys.time()
+
+  if (has_refresh && is_expired) {
+    client <- if (!is.null(.dstate$client)) {
+      .dstate$client
+    } else {
+      httr2::oauth_client(
+        id        = "mmhfsybffdom42w",
+        secret    = "l8zeqqqgm1ne5z0",
+        token_url = "https://api.dropbox.com/oauth2/token",
+        name      = "dropbox"
+      )
+    }
+    token <- httr2::oauth_token_refresh(client, token$refresh_token)
+    .dstate$token <- token
+    if (!is.null(.dstate$cache_path)) {
+      saveRDS(token, .dstate$cache_path)
+    }
+  }
+
+  token$access_token
 }
 
