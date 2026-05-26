@@ -51,9 +51,22 @@ add_slashes <- function(path) {
 #' @return Parsed JSON response as a named R list.
 #'
 #' @noRd
+#' Extract the bearer token string from a token argument.
+#'
+#' Accepts either a plain character string (as returned by
+#' \code{get_dropbox_token}) or an \code{httr2_token} / list object (as
+#' returned by \code{drop_auth}) and always returns the access-token string.
+#'
+#' @noRd
+resolve_token <- function(token) {
+  if (is.character(token)) return(token)
+  if (is.list(token) && !is.null(token$access_token)) return(token$access_token)
+  stop("Invalid token: supply the output of drop_auth() or get_dropbox_token().")
+}
+
 drop_request <- function(url, token, body = NULL) {
   req <- httr2::request(url)
-  req <- httr2::req_auth_bearer_token(req, token)
+  req <- httr2::req_auth_bearer_token(req, resolve_token(token))
   if (!is.null(body)) {
     req <- httr2::req_body_json(req, body)
   } else {
