@@ -22,8 +22,7 @@
 #' drop_create("drop_test2")
 #' drop_copy("mt.csv", "drop_test2/mt2.csv")
 #' }
-drop_copy <-
-  function(from_path = NULL,
+drop_copy <- function(from_path = NULL,
            to_path = NULL,
            allow_shared_folder = FALSE,
            autorename = FALSE,
@@ -31,29 +30,21 @@ drop_copy <-
            verbose = FALSE,
            dtoken = get_dropbox_token())  {
     copy_url <- "https://api.dropboxapi.com/2/files/copy_v2"
-    to_path <- add_slashes(to_path)
     from_path <- add_slashes(from_path)
     to_path <- add_slashes(to_path)
-    file_to_folder <-
     # Copying a file into a folder
-    file_to_folder <-
-      c(drop_type(from_path) == "file",
-        drop_type(to_path) == "folder")
-    to_path <-
-      ifelse(all(file_to_folder), paste0(to_path, from_path), to_path)
-    folder_to_folder <-
-    # coping a folder to another folder
-    folder_to_folder <-
-      c(drop_type(from_path) == "folder",
-        drop_type(to_path) == "folder")
-    to_path <-
-      ifelse(all(folder_to_folder), paste0(to_path, from_path), to_path)
+    file_to_folder <- c(drop_type(from_path) == "file",
+                        drop_type(to_path) == "folder")
+    to_path <- ifelse(all(file_to_folder), paste0(to_path, from_path), to_path)
+    # Copying a folder to another folder
+    folder_to_folder <- c(drop_type(from_path) == "folder",
+                          drop_type(to_path) == "folder")
+    to_path <- ifelse(all(folder_to_folder), paste0(to_path, from_path), to_path)
     # Nothing to do, since both paths reflect origin and destination
     # Copying a file to a file
     # Nothing to do, since both paths reflect origin and destination
 
     # Copying a folder to an existing filename will result in a HTTP 409 (conflict error)
-      list(
     args <- drop_compact(
       list(
         from_path = from_path,
@@ -63,8 +54,10 @@ drop_copy <-
         allow_ownership_transfer = allow_ownership_transfer
       )
     )
-      res <- drop_request(copy_url, dtoken, body = args)
+
     if (drop_exists(from_path)) {
+      res <- drop_request(copy_url, dtoken, body = args)
+      if (!verbose) {
         message(sprintf("%s copied to %s", from_path, res$metadata$path_lower))
         invisible(res)
       } else {
@@ -97,8 +90,7 @@ drop_copy <-
 #' drop_create("drop_test2")
 #' drop_move("mt.csv", "drop_test2/mt.csv")
 #' }
-drop_move <-
-  function(from_path = NULL,
+drop_move <- function(from_path = NULL,
            to_path = NULL,
            allow_shared_folder = FALSE,
            autorename = FALSE,
@@ -111,18 +103,14 @@ drop_move <-
     to_path <- add_slashes(to_path)
 
     # Moving a file into a folder
-    file_to_folder <-
-      c(drop_type(from_path) == "file",
-        drop_type(to_path) == "folder")
-    to_path <-
-      ifelse(all(file_to_folder), paste0(to_path, from_path), to_path)
+    file_to_folder <- c(drop_type(from_path) == "file",
+                        drop_type(to_path) == "folder")
+    to_path <- ifelse(all(file_to_folder), paste0(to_path, from_path), to_path)
 
     # Moving a folder to another folder
-    folder_to_folder <-
-      c(drop_type(from_path) == "folder",
-        drop_type(to_path) == "folder")
-    to_path <-
-      ifelse(all(folder_to_folder), paste0(to_path, from_path), to_path)
+    folder_to_folder <- c(drop_type(from_path) == "folder",
+                          drop_type(to_path) == "folder")
+    to_path <- ifelse(all(folder_to_folder), paste0(to_path, from_path), to_path)
 
     # Moving a file to a file
     # Nothing to do, since both paths reflect origin and destination
@@ -162,8 +150,7 @@ drop_move <-
 #' @template token
 #' @export
 #' @references \href{https://www.dropbox.com/developers/documentation/http/documentation#files-delete_v2}{API documentation}
-drop_delete <-
-  function (path = NULL,
+drop_delete <- function(path = NULL,
             verbose = FALSE,
             dtoken = get_dropbox_token()) {
     create_url <- "https://api.dropboxapi.com/2/files/delete_v2"
@@ -196,8 +183,7 @@ drop_delete <-
 #' @examples \dontrun{
 #' drop_create(path = "foobar")
 #'}
-drop_create <-
-  function(path = NULL,
+drop_create <- function(path = NULL,
            autorename = FALSE,
            verbose = FALSE,
            dtoken = get_dropbox_token()) {
@@ -262,8 +248,7 @@ drop_exists <- function(path = NULL, dtoken = get_dropbox_token()) {
   #
   # Other solution is to use purrr::safely to trap the error and return FALSE
   # (TODO): Explore uninteded consequence of this.
-  safe_dir_check <-
-    purrr::safely(drop_get_metadata, otherwise = FALSE, quiet = TRUE)
+  safe_dir_check <- purrr::safely(drop_get_metadata, otherwise = FALSE, quiet = TRUE)
   dir_listing <- safe_dir_check(path = path, dtoken = dtoken)
     # browser()
   if (length(dir_listing$result) == 1) {
@@ -302,8 +287,7 @@ drop_is_folder <- function(x, dtoken = get_dropbox_token()) {
 #' Checks on a name and returns file, folder, or FALSE for dropbox status
 #' @noRd
 drop_type <- function(x, dtoken = get_dropbox_token()) {
-  safe_meta <-
-    purrr::safely(drop_get_metadata, otherwise = FALSE, quiet = TRUE)
+  safe_meta <- purrr::safely(drop_get_metadata, otherwise = FALSE, quiet = TRUE)
   x <- safe_meta(x)
   if (length(x$result) == 1 && !x$result) {
     FALSE
