@@ -93,12 +93,14 @@ drop_auth <- function(new_user = FALSE,
   )
 
   # run auth-code flow (opens browser); request offline access so that
-  # Dropbox returns a refresh_token alongside the short-lived access_token
+  # Dropbox returns a refresh_token alongside the short-lived access_token.
+  # redirect_uri must match the URI registered for the Dropbox app (port 1410).
   dropbox_token <- httr2::oauth_flow_auth_code(
-    client      = dropbox_client,
-    auth_url    = "https://www.dropbox.com/oauth2/authorize",
-    auth_params = list(token_access_type = "offline"),
-    pkce        = FALSE
+    client       = dropbox_client,
+    auth_url     = "https://www.dropbox.com/oauth2/authorize",
+    auth_params  = list(token_access_type = "offline"),
+    redirect_uri = "http://localhost:1410/",
+    pkce         = FALSE
   )
 
   if (is.null(dropbox_token$access_token)) {
