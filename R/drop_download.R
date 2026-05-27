@@ -13,17 +13,17 @@
 #' @examples \dontrun{
 #'
 #'   # download a file to the current working directory
-#'   drop_get("dataset.zip")
+#'   drop_download("dataset.zip")
 #'
 #'   # download again, overwriting previous result
-#'   drop_get("dataset.zip", overwrite = TRUE)
+#'   drop_download("dataset.zip", overwrite = TRUE)
 #'
 #'   # download to a different path, keeping file name constant
 #'   # will download to "some/other/place/dataset.zip"
-#'   drop_get("dataset.zip", local_path = "some/other/place/")
+#'   drop_download("dataset.zip", local_path = "some/other/place/")
 #'
-#'   # download to to a different path, changing filename
-#'   drop_get("dataset.zip", local_path = "some/other/place/not_a_dataset.zip")
+#'   # download to a different path, changing filename
+#'   drop_download("dataset.zip", local_path = "some/other/place/not_a_dataset.zip")
 #' }
 #'
 #' @export
@@ -42,43 +42,38 @@ drop_download <- function(
   # if no local path given, download it to working directory
   # if path given is folder, append filename to it
   if (is.null(local_path)) {
-    local_path = basename(path)
+    local_path <- basename(path)
   } else if (dir.exists(local_path)) {
     local_path <- file.path(local_path, basename(path))
   }
 
+  if (file.exists(local_path) && !overwrite) {
+    cli::cli_abort(
+      "Local file {.file {local_path}} already exists. Set {.code overwrite = TRUE} to replace it."
+    )
+  }
+
   url <- "https://content.dropboxapi.com/2/files/download"
 
-  req <- httr::POST(
-    url = url,
-    httr::config(token = dtoken),
-    httr::add_headers("Dropbox-API-Arg" = jsonlite::toJSON(
-      list(
-        path = path
-      ),
-      auto_unbox = TRUE
-    )),
-    if (progress) httr::progress(),
-    httr::write_disk(local_path, overwrite)
-  )
+  arg_json <- jsonlite::toJSON(list(path = path), auto_unbox = TRUE)
 
-  httr::stop_for_status(req)
+  req <- httr2::request(url)
+  req <- httr2::req_auth_bearer_token(req, resolve_token(dtoken))
+  req <- httr2::req_headers(req, `Dropbox-API-Arg` = arg_json)
+  req <- httr2::req_body_raw(req, "", type = "application/octet-stream")
+  if (progress) req <- httr2::req_progress(req)
+
+  httr2::req_perform(req, path = local_path)
 
   # print message in verbose mode
   if (verbose) {
-
     size <- file.size(local_path)
     class(size) <- "object_size"
-
-    message(sprintf(
-      "Downloaded %s to %s: %s on disk",
-      path,
-      local_path,
-      format(size, units = "auto")
-    ))
+    cli::cli_inform(
+      "Downloaded {.path {path}} to {.path {local_path}}: {format(size, units = 'auto')} on disk"
+    )
   }
 
-  # must have been successful
   TRUE
 }
 
@@ -88,7 +83,7 @@ drop_download <- function(
 #' @template path
 #' @param  local_file The name of the local copy. Leave this blank if you're fine with the original name.
 #' @param overwrite Default is \code{FALSE} but can be set to \code{TRUE}.
-#' @param progress Progress bars are turned off by default. Set to \code{TRUE} ot turn this on. Progress is only reported when file sizes are known. Otherwise just bytes downloaded.
+#' @param progress Progress bars are turned off by default. Set to \code{TRUE} to turn this on.
 #' @template token
 #' @template verbose
 #'
@@ -110,7 +105,6 @@ drop_get <- function(
 
   .Deprecated("drop_download")
 
-  #assertive::assert_is_not_null(path)
   assertthat::assert_that(!is.null(path))
 
   if (drop_exists(path, dtoken = dtoken)) {
@@ -120,13 +114,13 @@ drop_get <- function(
 
     if (!verbose) {
       # prints file sizes in kb but this could also be pretty printed
-      message(sprintf("\n %s on disk %s KB", filename, file.size(filename)/1000))
+      cli::cli_inform("{filename} on disk {file.size(filename)/1000} KB")
       TRUE
     } else {
       drop_get_metadata(path)
     }
   } else {
-    message("File not found on Dropbox \n")
+    cli::cli_inform("File not found on Dropbox")
     FALSE
   }
 }

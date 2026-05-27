@@ -1,55 +1,52 @@
 # environment to store credentials
 .dstate <- new.env(parent = emptyenv())
 
+# default cache path for the token RDS file
+.default_token_cache <- ".rdrop2-token.rds"
+
 
 #' Authentication for Dropbox
 #'
-#' This function authenticates you into Dropbox. The documentation for the
-#' \href{https://www.dropbox.com/developers/documentation?_tk=pilot_lp&_ad=topbar1&_camp=docs}{core Dropbox API}
-#' provides more details including alternate methods if you desire to
-#' reimplement your own.
+#' This function authenticates you into Dropbox using OAuth 2.0 via the
+#' \pkg{httr2} package. The documentation for the
+#' \href{https://www.dropbox.com/developers/documentation}{Dropbox API v2}
+#' provides more details.
 #'
 #' @param new_user Set to \code{TRUE} if you need to switch to a new user
-#' account or just flush existing token. Default is \code{FALSE}.
-#' @param key Your application key. \code{rdrop2} already comes with a key/secret but
-#'   you are welcome to swap out with our own. Since these keys are shipped with
-#'   the package, there is a small chance they could be voided if someone abuses
-#'   the key. If you plan to use this in production, or for an internal tool,
-#'   the recommended practice is to create a new application on Dropbox and use
-#'   those keys for your purposes.
-#' @param secret Your application secret. Like \code{key}, \code{rdrop2} comes
-#' with a secret but you are welcome to swap out with our own.
-#' @param cache By default your credentials are locally cached in a file called
-#'   \code{.httr-oauth}. Set to FALSE if you need to authenticate separately
-#'   each time.
-#' @param rdstoken File path to stored RDS token. In server environments where
-#'   interactive OAuth is not possible, a token can be created on a desktop
-#'   client and used in production. See examples.
+#'   account or flush the existing cached token. Default is \code{FALSE}.
+#' @param key Your application key. \code{rdrop2} ships with a default key, but
+#'   for production use you should create your own Dropbox app and supply its
+#'   credentials.
+#' @param secret Your application secret.
+#' @param cache Either \code{TRUE} (save token to \code{.rdrop2-token.rds} in
+#'   the working directory), \code{FALSE} (do not cache), or a file path string
+#'   specifying where to save the token RDS file.
+#' @param rdstoken File path to a previously saved RDS token. In non-interactive
+#'   (server) environments, create a token on a desktop machine with
+#'   \code{drop_auth()}, save it with \code{saveRDS()}, and supply the path
+#'   here. See examples.
 #'
-#' @return A Token2.0 object, invisibly
+#' @return The \code{httr2_token} object, invisibly.
 #'
-#' @import httr
+#' @import httr2
 #' @references \href{https://www.dropbox.com/developers/documentation/http/documentation#authorization}{API documentation}
 #' @export
 #'
 #' @examples
 #' \dontrun{
 #'
-#'   # To either read token from .httr-oauth in the working directory or open a
-#'   # web browser to authenticate (and cache a token)
+#'   # Open a browser to authenticate (and cache the token)
 #'   drop_auth()
 #'
-#'   # If you want to overwrite an existing local token and switch to a new
-#'   # user, set new_user to TRUE.
+#'   # Switch to a new user account
 #'   drop_auth(new_user = TRUE)
 #'
-#'   # To store a token for re-use (more flexible than .httr-oauth), save the
-#'   # output of drop_auth and save it to an RDS file
+#'   # Save the token for later re-use
 #'   token <- drop_auth()
-#'   saveRDS(token, "/path/to/tokenfile.RDS")
+#'   saveRDS(token, "/path/to/tokenfile.rds")
 #'
-#'   # To use a stored token provide token location
-#'   drop_auth(rdstoken = "/path/to/tokenfile.RDS")
+#'   # Load a previously saved token
+#'   drop_auth(rdstoken = "/path/to/tokenfile.rds")
 #' }
 drop_auth <- function(new_user = FALSE,
                       key = "mmhfsybffdom42w",
@@ -57,60 +54,109 @@ drop_auth <- function(new_user = FALSE,
                       cache = TRUE,
                       rdstoken = NA) {
 
-  # check if token file exists & use it
-  if (new_user == FALSE &  !is.na(rdstoken)) {
-
-    # read token or error
-    if (file.exists(rdstoken)) {
-      .dstate$token <- readRDS(rdstoken)
-    } else {
-      stop("token file not found")
-    }
-
-    # authenticate normally
+  # resolve cache path
+  cache_path <- if (isTRUE(cache)) {
+    .default_token_cache
+  } else if (is.character(cache)) {
+    cache
   } else {
-
-    # remove any cached token if new user
-    if (new_user && file.exists(".httr-oauth")) {
-      message("Removing old credentials...")
-      file.remove(".httr-oauth")
-    }
-
-    # set dropbox oauth2 endpoints
-    dropbox <- httr::oauth_endpoint(
-      authorize = "https://www.dropbox.com/oauth2/authorize",
-      access = "https://api.dropbox.com/oauth2/token"
-    )
-
-    # registered dropbox app's key & secret
-    dropbox_app <- httr::oauth_app("dropbox", key, secret)
-
-    # get the token
-    dropbox_token <- httr::oauth2.0_token(dropbox, dropbox_app, cache = cache)
-
-    # make sure we got a token
-    if (!inherits(dropbox_token, "Token2.0")) {
-      stop("something went wrong, try again")
-    }
-
-    # cache token in rdrop2 namespace
-    .dstate$token <- dropbox_token
+    NULL
   }
+
+  # load token from explicit RDS path
+  if (!isTRUE(new_user) && !is.na(rdstoken)) {
+    if (!file.exists(rdstoken)) cli::cli_abort("token file not found")
+    .dstate$token      <- readRDS(rdstoken)
+    .dstate$cache_path <- rdstoken
+    return(invisible(.dstate$token))
+  }
+
+  # load token from cache path (unless new_user)
+  if (!isTRUE(new_user) && !is.null(cache_path) && file.exists(cache_path)) {
+    .dstate$token      <- readRDS(cache_path)
+    .dstate$cache_path <- cache_path
+    return(invisible(.dstate$token))
+  }
+
+  # remove old cache if switching users
+  if (isTRUE(new_user) && !is.null(cache_path) && file.exists(cache_path)) {
+    cli::cli_inform("Removing old cached credentials...")
+    file.remove(cache_path)
+  }
+
+  # build OAuth2 client
+  dropbox_client <- httr2::oauth_client(
+    id        = key,
+    secret    = secret,
+    token_url = "https://api.dropbox.com/oauth2/token",
+    name      = "dropbox"
+  )
+
+  # run auth-code flow (opens browser); request offline access so that
+  # Dropbox returns a refresh_token alongside the short-lived access_token.
+  # redirect_uri must match the URI registered for the Dropbox app (port 1410).
+  dropbox_token <- httr2::oauth_flow_auth_code(
+    client       = dropbox_client,
+    auth_url     = "https://www.dropbox.com/oauth2/authorize",
+    auth_params  = list(token_access_type = "offline"),
+    redirect_uri = "http://localhost:1410/",
+    pkce         = FALSE
+  )
+
+  if (is.null(dropbox_token$access_token)) {
+    cli::cli_abort("Authentication failed: no access token returned. Please try again.")
+  }
+
+  # persist to cache
+  if (!is.null(cache_path)) {
+    saveRDS(dropbox_token, cache_path)
+  }
+
+  .dstate$token      <- dropbox_token
+  .dstate$client     <- dropbox_client
+  .dstate$cache_path <- cache_path
+  invisible(.dstate$token)
 }
 
 
-
-#' Retrieve oauth2 token from rdrop2-namespaced environment
+#' Retrieve the Dropbox bearer token string
 #'
-#' Retrieves a token if it is previously stored, otherwise prompts user to get one.
+#' Returns the access token string stored in the rdrop2 environment. If no
+#' token is cached, \code{\link{drop_auth}} is called interactively. If the
+#' stored token has expired and a refresh token is available, the token is
+#' silently refreshed and the cache file is updated.
 #'
 #' @keywords internal
 get_dropbox_token <- function() {
-
-  if (!exists('.dstate') || is.null(.dstate$token)) {
+  if (!exists(".dstate") || is.null(.dstate$token)) {
     drop_auth()
-  } else {
-    .dstate$token
   }
+
+  token <- .dstate$token
+
+  # Refresh if the access token has expired and we have a refresh token
+  has_refresh  <- !is.null(token$refresh_token)
+  has_expiry   <- !is.null(token$expires_at)
+  is_expired   <- has_expiry && token$expires_at < Sys.time()
+
+  if (has_refresh && is_expired) {
+    client <- if (!is.null(.dstate$client)) {
+      .dstate$client
+    } else {
+      httr2::oauth_client(
+        id        = "mmhfsybffdom42w",
+        secret    = "l8zeqqqgm1ne5z0",
+        token_url = "https://api.dropbox.com/oauth2/token",
+        name      = "dropbox"
+      )
+    }
+    token <- httr2::oauth_token_refresh(client, token$refresh_token)
+    .dstate$token <- token
+    if (!is.null(.dstate$cache_path)) {
+      saveRDS(token, .dstate$cache_path)
+    }
+  }
+
+  token$access_token
 }
 
