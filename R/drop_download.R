@@ -8,6 +8,8 @@
 #' @references \href{https://www.dropbox.com/developers/documentation/http/documentation#files-download}{API documentation}
 #' @template token
 #'
+#' @importFrom cli cli_abort cli_alert_success
+#'
 #' @return TRUE if successful; error thrown otherwise.
 #'
 #' @examples \dontrun{
@@ -69,8 +71,9 @@ drop_download <- function(
   if (verbose) {
     size <- file.size(local_path)
     class(size) <- "object_size"
-    cli::cli_inform(
-      "Downloaded {.path {path}} to {.path {local_path}}: {format(size, units = 'auto')} on disk"
+    size_fmt <- format(size, units = "auto")
+    cli::cli_alert_success(
+      "Downloaded {.path {path}} to {.path {local_path}} ({.val {size_fmt}})"
     )
   }
 
@@ -86,6 +89,7 @@ drop_download <- function(
 #' @param progress Progress bars are turned off by default. Set to \code{TRUE} to turn this on.
 #' @template token
 #' @template verbose
+#' @importFrom cli cli_alert_danger cli_alert_success
 #'
 #' @examples \dontrun{
 #'   drop_get(path = 'dataset.zip', local_file = "~/Desktop")
@@ -109,18 +113,20 @@ drop_get <- function(
 
   if (drop_exists(path, dtoken = dtoken)) {
     filename <- ifelse(is.null(local_file), basename(path), local_file)
-
     drop_download(path, filename, overwrite, progress, verbose, dtoken)
 
     if (!verbose) {
-      # prints file sizes in kb but this could also be pretty printed
-      cli::cli_inform("{filename} on disk {file.size(filename)/1000} KB")
+      size <- file.size(filename)
+      class(size) <- "object_size"
+      cli::cli_alert_success(
+        "{.path {filename}} downloaded ({format(size, units = 'auto')})"
+      )
       TRUE
     } else {
       drop_get_metadata(path)
     }
   } else {
-    cli::cli_inform("File not found on Dropbox")
+    cli::cli_alert_danger("File not found on Dropbox: {.path {path}}")
     FALSE
   }
 }

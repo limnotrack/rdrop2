@@ -58,7 +58,7 @@ drop_copy <- function(from_path = NULL,
     if (drop_exists(from_path)) {
       res <- drop_request(copy_url, dtoken, body = args)
       if (!verbose) {
-        cli::cli_inform("{from_path} copied to {res$metadata$path_lower}")
+        cli::cli_alert_success("{from_path} copied to {res$metadata$path_lower}")
         invisible(res)
       } else {
         pretty_lists(res)
@@ -131,7 +131,7 @@ drop_move <- function(from_path = NULL,
       res <- drop_request(move_url, dtoken, body = args)
 
       if (!verbose) {
-        cli::cli_inform("{from_path} moved to {res$metadata$path_lower}")
+        cli::cli_alert_success("{from_path} moved to {res$metadata$path_lower}")
         invisible(res)
       } else {
         pretty_lists(res)
@@ -203,7 +203,7 @@ drop_create <- function(path = NULL,
         pretty_lists(results)
         invisible(results)
       } else {
-          cli::cli_inform("Folder {results$metadata$path_lower} created successfully")
+          cli::cli_alert_success("Folder {results$metadata$path_lower} created successfully")
           invisible(results)
       }
 

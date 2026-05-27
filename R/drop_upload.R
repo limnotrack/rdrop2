@@ -64,7 +64,7 @@ drop_upload <- function(file,
     invisible(response)
   } else {
     invisible(response)
-    cli::cli_inform(
+    cli::cli_alert_success(
       "File {.file {file}} uploaded as {response$path_display} successfully at {response$server_modified}"
     )
   }

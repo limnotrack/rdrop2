@@ -80,7 +80,7 @@ drop_auth <- function(new_user = FALSE,
 
   # remove old cache if switching users
   if (isTRUE(new_user) && !is.null(cache_path) && file.exists(cache_path)) {
-    cli::cli_inform("Removing old cached credentials...")
+    cli::cli_alert_info("Removing old cached credentials...")
     file.remove(cache_path)
   }
 
@@ -146,6 +146,7 @@ drop_auth <- function(new_user = FALSE,
 #'   session environment for use by all other rdrop2 functions.
 #'
 #' @import httr2
+#' @importFrom cli cli_alert_info cli_abort
 #' @export
 #'
 #' @examples
