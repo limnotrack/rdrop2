@@ -6,6 +6,9 @@
 \usage{
 get_dropbox_token()
 }
+\value{
+The Dropbox access token string.
+}
 \description{
 Returns the access token string stored in the rdrop2 environment. If no
 token is cached, \code{\link{drop_auth}} is called interactively. If the

@@ -169,6 +169,8 @@ drop_auth_env <- function(
     app_secret    = Sys.getenv("DROPBOX_APP_SECRET"),
     refresh_token = Sys.getenv("DROPBOX_REFRESH_TOKEN")
 ) {
+  cli::cli_alert_info("Authenticating with Dropbox using environment variables...")
+
   if (!nzchar(app_key))
     cli::cli_abort("app_key is empty. Set {.envvar DROPBOX_APP_KEY} or pass it directly.")
   if (!nzchar(app_secret))
@@ -217,6 +219,8 @@ drop_auth_env <- function(
 #' silently refreshed and the cache file is updated.
 #'
 #' @keywords internal
+#' @export
+#' @return The Dropbox access token string.
 get_dropbox_token <- function() {
   if (!exists(".dstate") || is.null(.dstate$token)) {
     # Prefer non-interactive env-var authentication when the variables are set
