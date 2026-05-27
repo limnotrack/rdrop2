@@ -150,7 +150,13 @@ get_dropbox_token <- function() {
         name      = "dropbox"
       )
     }
-    token <- httr2::oauth_token_refresh(client, token$refresh_token)
+    old_refresh_token <- token$refresh_token
+    token <- httr2::oauth_token_refresh(client, old_refresh_token)
+    # Dropbox does not re-issue the refresh token on refresh; preserve the
+    # original so subsequent refreshes continue to work.
+    if (is.null(token$refresh_token)) {
+      token$refresh_token <- old_refresh_token
+    }
     .dstate$token <- token
     if (!is.null(.dstate$cache_path)) {
       saveRDS(token, .dstate$cache_path)
