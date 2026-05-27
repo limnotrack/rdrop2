@@ -59,7 +59,7 @@ drop_download <- function(
   arg_json <- jsonlite::toJSON(list(path = path), auto_unbox = TRUE)
 
   req <- httr2::request(url)
-  req <- httr2::req_auth_bearer_token(req, dtoken)
+  req <- httr2::req_auth_bearer_token(req, resolve_token(dtoken))
   req <- httr2::req_headers(req, `Dropbox-API-Arg` = arg_json)
   req <- httr2::req_body_raw(req, "", type = "application/octet-stream")
   if (progress) req <- httr2::req_progress(req)

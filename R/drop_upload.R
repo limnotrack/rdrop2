@@ -91,7 +91,7 @@ drop_upload <- function(file,
   )
 
   req <- httr2::request(put_url)
-  req <- httr2::req_auth_bearer_token(req, dtoken)
+  req <- httr2::req_auth_bearer_token(req, resolve_token(dtoken))
   req <- httr2::req_headers(req, `Dropbox-API-Arg` = arg_json)
   req <- httr2::req_body_file(req, file, type = "application/octet-stream")
   resp <- httr2::req_perform(req)
@@ -125,7 +125,7 @@ drop_upload <- function(file,
 
   start_arg <- jsonlite::toJSON(list(close = FALSE), auto_unbox = TRUE)
   req <- httr2::request(start_url)
-  req <- httr2::req_auth_bearer_token(req, dtoken)
+  req <- httr2::req_auth_bearer_token(req, resolve_token(dtoken))
   req <- httr2::req_headers(req, `Dropbox-API-Arg` = start_arg)
   req <- httr2::req_body_raw(req, first_chunk, type = "application/octet-stream")
   resp <- httr2::req_perform(req)
@@ -143,7 +143,7 @@ drop_upload <- function(file,
       auto_unbox = TRUE
     )
     req <- httr2::request(append_url)
-    req <- httr2::req_auth_bearer_token(req, dtoken)
+    req <- httr2::req_auth_bearer_token(req, resolve_token(dtoken))
     req <- httr2::req_headers(req, `Dropbox-API-Arg` = append_arg)
     req <- httr2::req_body_raw(req, chunk, type = "application/octet-stream")
     httr2::req_perform(req)
@@ -167,7 +167,7 @@ drop_upload <- function(file,
     auto_unbox = TRUE
   )
   req <- httr2::request(finish_url)
-  req <- httr2::req_auth_bearer_token(req, dtoken)
+  req <- httr2::req_auth_bearer_token(req, resolve_token(dtoken))
   req <- httr2::req_headers(req, `Dropbox-API-Arg` = finish_arg)
   req <- httr2::req_body_raw(req, last_chunk, type = "application/octet-stream")
   resp <- httr2::req_perform(req)

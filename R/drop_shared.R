@@ -129,7 +129,7 @@ drop_get_shared_link_file <- function(url,
   }
 
   req <- httr2::request(download_url)
-  req <- httr2::req_auth_bearer_token(req, dtoken)
+  req <- httr2::req_auth_bearer_token(req, resolve_token(dtoken))
   req <- httr2::req_headers(req, `Dropbox-API-Arg` = arg_json)
   req <- httr2::req_body_raw(req, "", type = "application/json")
   httr2::req_perform(req, path = local_path)
