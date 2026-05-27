@@ -119,6 +119,98 @@ drop_auth <- function(new_user = FALSE,
 }
 
 
+#' Authenticate with Dropbox using environment variables
+#'
+#' A non-interactive authentication method that exchanges a long-lived refresh
+#' token for a short-lived access token.  Suitable for server or CI/CD
+#' environments where browser-based authentication is not possible.
+#'
+#' Set the following environment variables before calling this function (or any
+#' rdrop2 function that requires authentication):
+#' \itemize{
+#'   \item \code{DROPBOX_APP_KEY} – the app key from your Dropbox app console.
+#'   \item \code{DROPBOX_APP_SECRET} – the app secret.
+#'   \item \code{DROPBOX_REFRESH_TOKEN} – a long-lived refresh token. Obtain
+#'     one by running \code{drop_auth()} interactively and inspecting
+#'     \code{token$refresh_token}.
+#' }
+#'
+#' @param app_key      Dropbox application key. Defaults to
+#'   \code{Sys.getenv("DROPBOX_APP_KEY")}.
+#' @param app_secret   Dropbox application secret. Defaults to
+#'   \code{Sys.getenv("DROPBOX_APP_SECRET")}.
+#' @param refresh_token Long-lived refresh token. Defaults to
+#'   \code{Sys.getenv("DROPBOX_REFRESH_TOKEN")}.
+#'
+#' @return The token list (invisibly). The access token is stored in the rdrop2
+#'   session environment for use by all other rdrop2 functions.
+#'
+#' @import httr2
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#'   Sys.setenv(
+#'     DROPBOX_APP_KEY       = "your_app_key",
+#'     DROPBOX_APP_SECRET    = "your_app_secret",
+#'     DROPBOX_REFRESH_TOKEN = "your_refresh_token"
+#'   )
+#'   drop_auth_env()
+#'
+#'   # Alternatively, pass values directly:
+#'   drop_auth_env(
+#'     app_key       = "your_app_key",
+#'     app_secret    = "your_app_secret",
+#'     refresh_token = "your_refresh_token"
+#'   )
+#' }
+drop_auth_env <- function(
+    app_key       = Sys.getenv("DROPBOX_APP_KEY"),
+    app_secret    = Sys.getenv("DROPBOX_APP_SECRET"),
+    refresh_token = Sys.getenv("DROPBOX_REFRESH_TOKEN")
+) {
+  cli::cli_alert_info("Authenticating with Dropbox using environment variables...")
+
+  if (!nzchar(app_key))
+    cli::cli_abort("app_key is empty. Set {.envvar DROPBOX_APP_KEY} or pass it directly.")
+  if (!nzchar(app_secret))
+    cli::cli_abort("app_secret is empty. Set {.envvar DROPBOX_APP_SECRET} or pass it directly.")
+  if (!nzchar(refresh_token))
+    cli::cli_abort("refresh_token is empty. Set {.envvar DROPBOX_REFRESH_TOKEN} or pass it directly.")
+
+  token_resp <- httr2::request("https://api.dropbox.com/oauth2/token") |>
+    httr2::req_body_form(
+      refresh_token = refresh_token,
+      grant_type    = "refresh_token",
+      client_id     = app_key,
+      client_secret = app_secret
+    ) |>
+    httr2::req_error(body = function(resp) httr2::resp_body_json(resp)$error) |>
+    httr2::req_perform()
+
+  token <- httr2::resp_body_json(token_resp)
+
+  # Convert expires_in (seconds) to an absolute timestamp for expiry checks
+  if (!is.null(token$expires_in)) {
+    token$expires_at <- Sys.time() + token$expires_in
+  }
+
+  # Dropbox does not re-issue the refresh token on refresh; preserve the original
+  token$refresh_token <- refresh_token
+
+  # Store the OAuth client so that get_dropbox_token() can refresh automatically later
+  .dstate$client <- httr2::oauth_client(
+    id        = app_key,
+    secret    = app_secret,
+    token_url = "https://api.dropbox.com/oauth2/token",
+    name      = "dropbox"
+  )
+  .dstate$token <- token
+
+  invisible(token)
+}
+
+
 #' Retrieve the Dropbox bearer token string
 #'
 #' Returns the access token string stored in the rdrop2 environment. If no
@@ -127,9 +219,19 @@ drop_auth <- function(new_user = FALSE,
 #' silently refreshed and the cache file is updated.
 #'
 #' @keywords internal
+#' @export
+#' @return The Dropbox access token string.
 get_dropbox_token <- function() {
   if (!exists(".dstate") || is.null(.dstate$token)) {
-    drop_auth()
+    # Prefer non-interactive env-var authentication when the variables are set
+    env_key     <- Sys.getenv("DROPBOX_APP_KEY")
+    env_secret  <- Sys.getenv("DROPBOX_APP_SECRET")
+    env_refresh <- Sys.getenv("DROPBOX_REFRESH_TOKEN")
+    if (nzchar(env_key) && nzchar(env_secret) && nzchar(env_refresh)) {
+      drop_auth_env(env_key, env_secret, env_refresh)
+    } else {
+      drop_auth()
+    }
   }
 
   token <- .dstate$token
