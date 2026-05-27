@@ -60,7 +60,7 @@ add_slashes <- function(path) {
 resolve_token <- function(token) {
   if (is.character(token)) return(token)
   if (is.list(token) && !is.null(token$access_token)) return(token$access_token)
-  stop("Invalid token: supply the output of drop_auth() or get_dropbox_token().")
+  cli::cli_abort("Invalid token: supply the output of {.fn drop_auth} or {.fn get_dropbox_token}.")
 }
 
 drop_request <- function(url, token, body = NULL) {

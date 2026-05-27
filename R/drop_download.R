@@ -48,10 +48,9 @@ drop_download <- function(
   }
 
   if (file.exists(local_path) && !overwrite) {
-    stop(sprintf(
-      "Local file '%s' already exists. Set overwrite = TRUE to replace it.",
-      local_path
-    ))
+    cli::cli_abort(
+      "Local file {.file {local_path}} already exists. Set {.code overwrite = TRUE} to replace it."
+    )
   }
 
   url <- "https://content.dropboxapi.com/2/files/download"
@@ -70,12 +69,9 @@ drop_download <- function(
   if (verbose) {
     size <- file.size(local_path)
     class(size) <- "object_size"
-    message(sprintf(
-      "Downloaded %s to %s: %s on disk",
-      path,
-      local_path,
-      format(size, units = "auto")
-    ))
+    cli::cli_inform(
+      "Downloaded {.path {path}} to {.path {local_path}}: {format(size, units = 'auto')} on disk"
+    )
   }
 
   TRUE
@@ -118,13 +114,13 @@ drop_get <- function(
 
     if (!verbose) {
       # prints file sizes in kb but this could also be pretty printed
-      message(sprintf("\n %s on disk %s KB", filename, file.size(filename)/1000))
+      cli::cli_inform("{filename} on disk {file.size(filename)/1000} KB")
       TRUE
     } else {
       drop_get_metadata(path)
     }
   } else {
-    message("File not found on Dropbox \n")
+    cli::cli_inform("File not found on Dropbox")
     FALSE
   }
 }

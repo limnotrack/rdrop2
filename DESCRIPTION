@@ -11,7 +11,8 @@ Depends: R (>= 3.6.0)
 License: MIT + file LICENSE
 BugReports: https://github.com/karthik/rdrop2/issues
 LazyData: true
-Imports: digest,
+Imports: cli,
+         digest,
          dplyr,
          httr2,
          jsonlite,

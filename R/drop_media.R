@@ -22,7 +22,7 @@ drop_media <- function(path = NULL, dtoken = get_dropbox_token()) {
     path <- add_slashes(path)
     drop_request(media_url, dtoken, body = list(path = path))
   } else {
-    stop("File not found \n")
+    cli::cli_abort("File not found")
   }
 }
 
@@ -76,10 +76,9 @@ drop_get_thumbnail <- function(path,
   }
 
   if (file.exists(local_path) && !overwrite) {
-    stop(sprintf(
-      "Local file '%s' already exists. Set overwrite = TRUE to replace it.",
-      local_path
-    ))
+    cli::cli_abort(
+      "Local file {.file {local_path}} already exists. Set {.code overwrite = TRUE} to replace it."
+    )
   }
 
   url <- "https://content.dropboxapi.com/2/files/get_thumbnail_v2"

@@ -122,10 +122,9 @@ drop_get_shared_link_file <- function(url,
   }
 
   if (file.exists(local_path) && !overwrite) {
-    stop(sprintf(
-      "Local file '%s' already exists. Set overwrite = TRUE to replace it.",
-      local_path
-    ))
+    cli::cli_abort(
+      "Local file {.file {local_path}} already exists. Set {.code overwrite = TRUE} to replace it."
+    )
   }
 
   req <- httr2::request(download_url)

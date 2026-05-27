@@ -58,14 +58,14 @@ drop_copy <- function(from_path = NULL,
     if (drop_exists(from_path)) {
       res <- drop_request(copy_url, dtoken, body = args)
       if (!verbose) {
-        message(sprintf("%s copied to %s", from_path, res$metadata$path_lower))
+        cli::cli_inform("{from_path} copied to {res$metadata$path_lower}")
         invisible(res)
       } else {
         pretty_lists(res)
         invisible(res)
       }
     } else {
-      stop("File or folder not found \n")
+      cli::cli_abort("File or folder not found")
     }
   }
 
@@ -131,14 +131,14 @@ drop_move <- function(from_path = NULL,
       res <- drop_request(move_url, dtoken, body = args)
 
       if (!verbose) {
-        message(sprintf("%s moved to %s", from_path, res$metadata$path_lower))
+        cli::cli_inform("{from_path} moved to {res$metadata$path_lower}")
         invisible(res)
       } else {
         pretty_lists(res)
         invisible(res)
       }
     } else {
-      stop("File or folder not found \n")
+      cli::cli_abort("File or folder not found")
     }
   }
 
@@ -165,7 +165,7 @@ drop_delete <- function(path = NULL,
       }
     } else {
       # Since file/folder wasn't found, report a stop error
-      stop("File not found on current path")
+      cli::cli_abort("File not found on current path")
     }
   }
 
@@ -203,13 +203,13 @@ drop_create <- function(path = NULL,
         pretty_lists(results)
         invisible(results)
       } else {
-          message(sprintf("Folder %s created successfully \n", results$metadata$path_lower))
+          cli::cli_inform("Folder {results$metadata$path_lower} created successfully")
           invisible(results)
       }
 
       invisible(results)
     } else {
-      stop("Folder already exists")
+      cli::cli_abort("Folder already exists")
     }
   }
 
@@ -435,7 +435,7 @@ drop_delete_batch <- function(entries, dtoken = get_dropbox_token()) {
       return(status$entries)
     }
     if (!is.null(tag) && tag == "failed") {
-      stop("Batch job failed: ", status$failure)
+      cli::cli_abort("Batch job failed: {status$failure}")
     }
     # tag == "in_progress": keep polling
   }

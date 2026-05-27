@@ -65,7 +65,7 @@ drop_auth <- function(new_user = FALSE,
 
   # load token from explicit RDS path
   if (!isTRUE(new_user) && !is.na(rdstoken)) {
-    if (!file.exists(rdstoken)) stop("token file not found")
+    if (!file.exists(rdstoken)) cli::cli_abort("token file not found")
     .dstate$token      <- readRDS(rdstoken)
     .dstate$cache_path <- rdstoken
     return(invisible(.dstate$token))
@@ -80,7 +80,7 @@ drop_auth <- function(new_user = FALSE,
 
   # remove old cache if switching users
   if (isTRUE(new_user) && !is.null(cache_path) && file.exists(cache_path)) {
-    message("Removing old cached credentials...")
+    cli::cli_inform("Removing old cached credentials...")
     file.remove(cache_path)
   }
 
@@ -104,7 +104,7 @@ drop_auth <- function(new_user = FALSE,
   )
 
   if (is.null(dropbox_token$access_token)) {
-    stop("Authentication failed: no access token returned. Please try again.")
+    cli::cli_abort("Authentication failed: no access token returned. Please try again.")
   }
 
   # persist to cache

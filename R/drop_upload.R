@@ -64,12 +64,9 @@ drop_upload <- function(file,
     invisible(response)
   } else {
     invisible(response)
-    message(sprintf(
-      'File %s uploaded as %s successfully at %s',
-      file,
-      response$path_display,
-      response$server_modified
-    ))
+    cli::cli_inform(
+      "File {.file {file}} uploaded as {response$path_display} successfully at {response$server_modified}"
+    )
   }
 }
 
@@ -231,7 +228,7 @@ drop_save_url <- function(path, url, poll = TRUE, interval = 2,
                            body = list(async_job_id = async_job_id))
     tag <- status[[".tag"]]
     if (!is.null(tag) && tag == "complete") return(status)
-    if (!is.null(tag) && tag == "failed")   stop("save_url job failed: ", status$failed)
+    if (!is.null(tag) && tag == "failed")   cli::cli_abort("save_url job failed: {status$failed}")
     # in_progress: keep polling
   }
 }
